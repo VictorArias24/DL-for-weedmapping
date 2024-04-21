@@ -53,13 +53,11 @@ SEQUOIA_SPLIT = {
     "test": ["005"],
 }
 
-REDEDGE_CHANNELS = ['CIR', 'G', 'NDVI', 'NIR', 'R', 'RE', 'B']
+REDEDGE_CHANNELS = ['B', 'CIR', 'G', 'NDVI', 'NIR', 'R', 'RE', "RGB"]
 REDEDGE_SPLIT = {
     "train": ["000", "001", "002", "004"],
     "test": ["003"],
 }
-
-VALIDATION_PARTITION = 0.2
 
 
 class WeedMapConfig(datasets.BuilderConfig):
@@ -75,8 +73,7 @@ class WeedMapConfig(datasets.BuilderConfig):
         super(WeedMapConfig, self).__init__(version=datasets.Version("1.0.0"), **kwargs)
         self.data_url = data_url
 
-
-class WeedMapDataset(datasets.GeneratorBasedBuilder):
+class WeedMap(datasets.GeneratorBasedBuilder):
     """Remote Sensing 2018 Weed Map Dataset."""
 
     BUILDER_CONFIGS = [
@@ -94,22 +91,36 @@ class WeedMapDataset(datasets.GeneratorBasedBuilder):
     DEFAULT_CONFIG_NAME = "red_edge"
 
     def _info(self):
-        features = datasets.Features(
-            {
-                "image": datasets.Image(),
-                "annotation": datasets.Image(),
-                "class_label": datasets.ClassLabel(
-                    names=list(WEEDMAP_CLASSES.values())),
-            }
-        )
+        if self.config.name == "red_edge":
+            features = datasets.Features(
+                {
+                    "B": datasets.Image(),
+                    "CIR": datasets.Image(),
+                    "G": datasets.Image(),
+                    "NDVI": datasets.Image(),
+                    "NIR": datasets.Image(),
+                    "R": datasets.Image(),
+                    "RE": datasets.Image(),
+                    "RGB": datasets.Image(),
+                    "annotation": datasets.Image(),
+                }
+            )
+        elif self.config.name == "sequoia":
+            features = datasets.Features(
+                {
+                    "CIR": datasets.Image(),
+                    "G": datasets.Image(),
+                    "NDVI": datasets.Image(),
+                    "NIR": datasets.Image(),
+                    "R": datasets.Image(),
+                    "RE": datasets.Image(),
+                    "annotation": datasets.Image(),
+                }
+            )
 
         return datasets.DatasetInfo(
             description=_DESCRIPTION,
             features=features,
-            supervised_keys=(
-                "image",
-                "annotation",
-                "class_label"),
             homepage=_HOMEPAGE,
             license=_LICENSE,
             citation=_CITATION,
@@ -120,61 +131,75 @@ class WeedMapDataset(datasets.GeneratorBasedBuilder):
         # use the datasets.DownloadManager().download_and_extract() method to download the data
         # in testing time, the data will be downloaded in the default cache directory, which is
         # ~/.cache/huggingface/datasets
+
+        def images_and_masks(images_dict, masks):
+            for image_dict, mask in zip(images_dict, masks):
+                yield image_dict, mask
+
         if self.config.name == "red_edge":
             data_dir = dl_manager.download_and_extract(_URLS["RED_EDGE"])
-            channels = REDEDGE_CHANNELS
-
             files_path = dl_manager.iter_files(data_dir)
-            train_image_files, train_mask_files, val_image_files, val_mask_files = create_list_paths(files, subset="red_edge", split_section="train")
-            test_image_files, test_mask_files = create_list_paths(files, subset="red_edge", split_section="test")
+            train_image_files, train_mask_files = create_list_paths(files_path, subset="red_edge", split_section="train")
+            test_image_files, test_mask_files = create_list_paths(files_path, subset="red_edge", split_section="test")
 
-            return [
+
+        elif self.config.name == "sequoia":
+            data_dir = dl_manager.download_and_extract(_URLS["SEQUOIA"])
+            files_path = dl_manager.iter_files(data_dir)
+            train_image_files, train_mask_files = create_list_paths(files_path, subset="sequoia", split_section="train")
+            test_image_files, test_mask_files = create_list_paths(files_path, subset="sequoia", split_section="test")
+
+        return [
                 datasets.SplitGenerator(
                     name=datasets.Split.TRAIN,
                     gen_kwargs={
-                        "archives": [dl_manager.iter_archive(archive) for archive in archives["train"]],
-                        "split": "train",
-                    },
-                ),
-                datasets.SplitGenerator(
-                    name=datasets.Split.VALIDATION,
-                    gen_kwargs={
-                        "archives": [dl_manager.iter_archive(archive) for archive in archives["val"]],
-                        "split": "validation",
+                        "data": images_and_masks(train_image_files, train_mask_files),
                     },
                 ),
                 datasets.SplitGenerator(
                     name=datasets.Split.TEST,
                     gen_kwargs={
-                        "archives": [dl_manager.iter_archive(archive) for archive in archives["test"]],
-                        "split": "test",
+                        "data": images_and_masks(test_image_files, test_mask_files),
                     },
                 ),
-            ]
+            ]     
 
-        # TODO: finish the implementation for the sequoia dataset
-        elif self.config.name == "sequoia":
-            data_dir = dl_manager.download_and_extract(_URLS["SEQUOIA"])
-            channels = SEQUOIA_CHANNELS
-            files = dl_manager.iter_files(data_dir)
-            
-        else:
-            raise ValueError("Invalid dataset name")
-        
+    def _generate_examples(self, data):
 
-    def _generate_examples(self, images_dir, annotations_dir, labels_dir):
         """Yields examples."""
-        for image_path in sorted(os.listdir(images_dir)):
-            image_id = image_path.split(".")[0]
-            annotation_path = os.path.join(annotations_dir, image_id + ".png")
-            labels_path = os.path.join(labels_dir, image_id + ".json")
-            yield image_id, {
-                "image": image_path,
-                "annotation": annotation_path,
-                "class_label": labels_path,
-            }
+        if self.config.name == "red_edge":
+            for idx, (img_path, msk_path) in enumerate(data):
+                print("")
+                print("")
+                print("")
+                print(img_path["B"])
+                print("")
+                print("")
+                print("")
+                yield idx, {
+                    "B": img_path["B"],
+                    "CIR": img_path["CIR"],
+                    "G": img_path["G"],
+                    "NDVI": img_path["NDVI"],
+                    "NIR": img_path["NIR"],
+                    "R": img_path["R"],
+                    "RE": img_path["RE"],
+                    "RGB": img_path["RGB"],
+                    "annotation": msk_path,
+                }
 
-
+        elif self.config.name == "sequoia":
+            for idx, (img_path, msk_path) in enumerate(data):
+                yield idx, {
+                    "CIR": img_path["CIR"],
+                    "G": img_path["G"],
+                    "NDVI": img_path["NDVI"],
+                    "NIR": img_path["NIR"],
+                    "R": img_path["R"],
+                    "RE": img_path["RE"],
+                    "annotation": msk_path,
+                }
+            
 def create_list_paths(total_files_path, subset="red_edge", split_section="train"):
     """
     Create a list of paths for the images and masks.
@@ -191,30 +216,38 @@ def create_list_paths(total_files_path, subset="red_edge", split_section="train"
     """
     if subset == "red_edge":
         subset_dict = REDEDGE_SPLIT
+
     elif subset == "sequoia":
         subset_dict = SEQUOIA_SPLIT
 
-    # filter the files by the split section
-    split_files_path = [file_path for file_path in total_files_path if file_path.split("/")[-4] in subset_dict[split_section]]
+    # multi filter
+    split_files_path = [
+        file_path for file_path in total_files_path
+        if (
+            (not ".DS_Store" in file_path) and  # don't take account trash files
+            ("GroundTruth_color.png" in file_path or  # if the image is a color mask, save the path
+            file_path.split("/")[-4] in subset_dict[split_section]  # if the image is in the correct split folder, save the path
+            )
+        )
+                        ]
 
-    # separate the image and mask files
-    split_image_files = []
     split_mask_files = []
+    split_image_files = dict()
+
+    # separate every tile by channel name
     for file in split_files_path:
         if "tile" in file:
-            split_image_files.append(file)
-        elif "groundtruth" in file and "color.png" in file:
+            image_channel_name = file.split("/")[-2]
+            split_image_files.setdefault(image_channel_name, [])
+            split_image_files[image_channel_name].append(file)
+        else:
             split_mask_files.append(file)
 
     # sorted the image and mask files by name
-    split_image_files = sorted(split_image_files, key=lambda path_file: (str(path_file).split("/")[-4], str(path_file).split("/")[-1]))
+    for key, image_paths_channel in split_image_files.items():
+        split_image_files[key] = sorted(image_paths_channel, key=lambda path_file: (str(path_file).split("/")[-4], str(path_file).split("/")[-1]))
     split_mask_files = sorted(split_mask_files, key=lambda path_file: (str(path_file).split("/")[-4], str(path_file).split("/")[-1]))
 
-    if split_section == "train":
-        # perform another stratified sampling, this time to build the
-        # validation data
-        split = train_test_split(split_image_files, split_mask_files, test_size=VALIDATION_PARTITION, random_state=42)
-        train_image_files, val_image_files, train_mask_files, val_mask_files = split
-        return train_image_files, train_mask_files, val_image_files, val_mask_files
-    else:
-        return split_image_files, split_mask_files
+    split_image_files_ld = [dict(zip(split_image_files, t)) for t in zip(*split_image_files.values())]
+
+    return split_image_files_ld, split_mask_files
