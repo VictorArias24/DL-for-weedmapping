@@ -169,13 +169,6 @@ class WeedMap(datasets.GeneratorBasedBuilder):
         """Yields examples."""
         if self.config.name == "red_edge":
             for idx, (img_path, msk_path) in enumerate(data):
-                print("")
-                print("")
-                print("")
-                print(img_path["B"])
-                print("")
-                print("")
-                print("")
                 yield idx, {
                     "B": img_path["B"],
                     "CIR": img_path["CIR"],

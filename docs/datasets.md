@@ -70,7 +70,7 @@ For this particular case, we have two configurations, one for the **red edge** c
 
 ```python
 >>> from datasets import load_dataset
->>> rededge_dataset = load_dataset("viarias/remote_sensing_2018_weedmap", subset="red_edge", split="train")
+>>> rededge_dataset = load_dataset("viarias/remote_sensing_2018_weedmap", "red_edge", split="train")
 ```
 
 ## `_info` method
